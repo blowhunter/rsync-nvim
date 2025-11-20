@@ -1,8 +1,11 @@
--- Configuration management for rsync.nvim
+-- Configuration management for rsync-nvim
 local M = {}
 
 -- Default configuration
 local default_config = {
+    -- Configuration management
+    config_file_reminder = true,
+
     -- Connection settings
     host = "",
     username = "",
@@ -137,17 +140,69 @@ end
 function M.setup(user_config)
     -- Load project config if exists
     local project_config = load_project_config()
+    local config_file_exists = next(project_config) ~= nil
 
     -- Merge configurations: default -> project -> user
     config = vim.tbl_deep_extend("force", default_config, project_config, user_config or {})
 
+    -- Don't validate if no config file loaded and user didn't provide config
+    if not config_file_exists and not user_config then
+        return false
+    end
+
     -- Validate configuration
     local valid, errors = validate_config(config)
     if not valid then
-        error("Configuration validation failed:\n" .. table.concat(errors, "\n"))
+        vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+        return false
     end
 
-    vim.notify("Rsync configuration loaded successfully", vim.log.levels.INFO)
+    if config_file_exists then
+        vim.notify("Rsync configuration loaded from project file", vim.log.levels.INFO)
+    elseif user_config then
+        vim.notify("Rsync configuration loaded from user config", vim.log.levels.INFO)
+    end
+
+    return true
+end
+
+-- Check if rsync is properly configured
+function M.is_configured()
+    -- Check required fields
+    local required_fields = {"host", "username", "local_path", "remote_path"}
+
+    for _, field in ipairs(required_fields) do
+        local value = M.get(field)
+        if not value or value == "" then
+            return false
+        end
+    end
+
+    return true
+end
+
+-- Validate current configuration and return detailed results
+function M.validate_current_config()
+    return validate_config(config)
+end
+
+-- Get configuration file path
+function M.get_config_file_path()
+    local config_files = {
+        ".rsync.json",
+        ".rsync.jsonc",
+        "rsync.json",
+        "rsync.jsonc"
+    }
+
+    for _, filename in ipairs(config_files) do
+        local config_path = vim.fn.findfile(filename, vim.fn.getcwd() .. ";")
+        if config_path ~= "" then
+            return config_path
+        end
+    end
+
+    return nil
 end
 
 -- Get configuration value

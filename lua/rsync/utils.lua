@@ -1,4 +1,4 @@
--- Utility functions for rsync.nvim
+-- Utility functions for rsync-nvim
 local M = {}
 
 -- Dependencies

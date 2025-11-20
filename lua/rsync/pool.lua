@@ -1,4 +1,4 @@
--- Connection pool and batch processing for rsync.nvim
+-- Connection pool and batch processing for rsync-nvim
 local M = {}
 
 -- Pool state

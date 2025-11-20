@@ -1,4 +1,4 @@
--- Core rsync operations for rsync.nvim
+-- Core rsync operations for rsync-nvim
 local M = {}
 
 -- Dependencies

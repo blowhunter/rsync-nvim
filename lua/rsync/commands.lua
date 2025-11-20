@@ -1,4 +1,4 @@
--- Neovim commands for rsync.nvim
+-- Neovim commands for rsync-nvim
 local M = {}
 
 -- Dependencies
@@ -99,12 +99,20 @@ function M.register()
         desc = "Cancel rsync operation"
     })
 
+    -- Configuration setup command
+    vim.api.nvim_create_user_command("RsyncSetup", function(opts)
+        M.handle_setup_command(opts)
+    end, {
+        nargs = 0,
+        desc = "Interactive configuration setup for rsync-nvim"
+    })
+
     -- Setup completion for config command
     vim.fn.RsyncConfigComplete = function(ArgLead, CmdLine, CursorPos)
         local config_keys = {
             "host", "username", "port", "private_key_path",
             "local_path", "remote_path", "auto_sync", "sync_on_save",
-            "sync_interval", "max_connections", "batch_size"
+            "sync_interval", "max_connections", "batch_size", "config_file_reminder"
         }
 
         local matches = {}
@@ -120,6 +128,12 @@ end
 
 -- Handle upload command
 function M.handle_upload_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot upload: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local args = opts.fargs
 
     if #args == 0 then
@@ -150,6 +164,12 @@ end
 
 -- Handle download command
 function M.handle_download_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot download: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local args = opts.fargs
 
     if #args == 0 then
@@ -162,6 +182,12 @@ end
 
 -- Handle upload directory command
 function M.handle_upload_dir_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot upload directory: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local dir_path = opts.args
 
     if dir_path == "" or dir_path == nil then
@@ -196,6 +222,12 @@ end
 
 -- Handle download directory command
 function M.handle_download_dir_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot download directory: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local dir_path = opts.args
 
     if dir_path == "" or dir_path == nil then
@@ -214,6 +246,12 @@ end
 
 -- Handle sync command
 function M.handle_sync_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot sync project: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     Core.sync_all(function(success, message)
         if success then
             vim.notify("Project sync completed", vim.log.levels.INFO)
@@ -225,6 +263,12 @@ end
 
 -- Handle sync buffer command
 function M.handle_sync_buffer_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot sync buffer: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local buf_file = vim.api.nvim_buf_get_name(0)
     if buf_file == "" then
         vim.notify("No file to sync", vim.log.levels.ERROR)
@@ -381,6 +425,12 @@ end
 
 -- Handle test connection command
 function M.handle_test_connection_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot test connection: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     vim.notify("Testing SSH connection...", vim.log.levels.INFO)
 
     Utils.validate_ssh_connection(function(success, message, details)
@@ -397,6 +447,12 @@ end
 
 -- Handle diff command
 function M.handle_diff_command(opts)
+    -- Verify configuration before proceeding
+    if not Config.is_configured() then
+        vim.notify("Cannot check differences: rsync is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.ERROR)
+        return
+    end
+
     local file_path = opts.args
 
     if file_path == "" or file_path == nil then
@@ -490,6 +546,34 @@ function M.upload_with_feedback(files)
             vim.notify("Upload failed: " .. (message or "Unknown error"), vim.log.levels.ERROR)
         end
     end)
+end
+
+-- Handle setup command
+function M.handle_setup_command(opts)
+    local Rsync = require("rsync")
+
+    -- Check if configuration already exists
+    local config_path = Config.get_config_file_path()
+    if config_path then
+        vim.ui.select({
+            "Create new configuration (overwrite existing)",
+            "Edit existing configuration",
+            "Cancel"
+        }, {
+            prompt = "Configuration file already exists at " .. config_path,
+            format_item = function(item)
+                return item
+            end
+        }, function(choice)
+            if choice == "Create new configuration (overwrite existing)" then
+                Rsync.setup_interactive()
+            elseif choice == "Edit existing configuration" then
+                vim.cmd("edit " .. config_path)
+            end
+        end)
+    else
+        Rsync.setup_interactive()
+    end
 end
 
 -- Helper function for download with feedback

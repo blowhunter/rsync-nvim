@@ -1,4 +1,4 @@
--- Progress UI and user feedback for rsync.nvim
+-- Progress UI and user feedback for rsync-nvim
 local M = {}
 
 -- UI state

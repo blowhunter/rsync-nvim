@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Neovim plugin written in Lua that provides rsync integration for file synchronization operations. The plugin wraps Linux's rsync command to enable efficient file and directory transfers with connection pooling and multi-processing capabilities.
+This is the **blowhunter/rsync-nvim** plugin - a Neovim plugin written in Lua that provides rsync integration for file synchronization operations. The plugin wraps Linux's rsync command to enable efficient file and directory transfers with connection pooling and multi-processing capabilities.
 
 ## Core Requirements
 

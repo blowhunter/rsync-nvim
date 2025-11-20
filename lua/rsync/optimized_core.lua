@@ -1,4 +1,4 @@
--- Optimized core rsync operations for rsync.nvim
+-- Optimized core rsync operations for rsync-nvim
 local M = {}
 
 -- Dependencies
