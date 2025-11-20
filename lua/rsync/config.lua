@@ -145,25 +145,30 @@ function M.setup(user_config)
     -- Merge configurations: default -> project -> user
     config = vim.tbl_deep_extend("force", default_config, project_config, user_config or {})
 
-    -- Don't validate if no config file loaded and user didn't provide config
+    -- Return false if no config file loaded and user didn't provide config
     if not config_file_exists and not user_config then
         return false
     end
 
-    -- Validate configuration
-    local valid, errors = validate_config(config)
-    if not valid then
-        vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
-        return false
+    -- Only validate if we have actual configuration data
+    local should_validate = config_file_exists or user_config
+
+    if should_validate then
+        -- Validate configuration
+        local valid, errors = validate_config(config)
+        if not valid then
+            vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+            return false
+        end
+
+        if config_file_exists then
+            vim.notify("Rsync configuration loaded from project file", vim.log.levels.INFO)
+        elseif user_config then
+            vim.notify("Rsync configuration loaded from user config", vim.log.levels.INFO)
+        end
     end
 
-    if config_file_exists then
-        vim.notify("Rsync configuration loaded from project file", vim.log.levels.INFO)
-    elseif user_config then
-        vim.notify("Rsync configuration loaded from user config", vim.log.levels.INFO)
-    end
-
-    return true
+    return should_validate
 end
 
 -- Check if rsync is properly configured

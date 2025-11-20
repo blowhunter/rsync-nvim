@@ -26,15 +26,7 @@ function M.setup(opts)
         return false
     end
 
-    -- Validate the loaded configuration
-    local valid, errors = Config.validate_current_config()
-    if not valid then
-        vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
-        -- Still register basic setup command for configuration fixing
-        Commands.register_basic_only()
-        return false
-    end
-
+    -- At this point, config was loaded and validated successfully
     -- Initialize connection pool
     Pool.setup()
 
