@@ -17,20 +17,28 @@ function M.setup(opts)
     local config_loaded = Config.setup(opts or {})
 
     -- Check if configuration file exists and show reminder if needed
-    if not config_loaded and Config.get("config_file_reminder", true) then
-        M.show_config_file_reminder()
+    if not config_loaded then
+        if Config.get("config_file_reminder", true) then
+            M.show_config_file_reminder()
+        end
+        -- Still register basic setup command even without configuration
+        Commands.register_basic_only()
+        return false
     end
 
-    -- Only proceed with setup if configuration is valid
-    if not Config.is_configured() then
-        vim.notify("Rsync plugin is not configured. Please create a .rsync.json file or run :RsyncSetup", vim.log.levels.WARN)
+    -- Validate the loaded configuration
+    local valid, errors = Config.validate_current_config()
+    if not valid then
+        vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+        -- Still register basic setup command for configuration fixing
+        Commands.register_basic_only()
         return false
     end
 
     -- Initialize connection pool
     Pool.setup()
 
-    -- Register Neovim commands
+    -- Register all Neovim commands
     Commands.register()
 
     -- Setup auto-sync if enabled

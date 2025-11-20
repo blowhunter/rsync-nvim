@@ -576,6 +576,17 @@ function M.handle_setup_command(opts)
     end
 end
 
+-- Register only basic setup command (works without configuration)
+function M.register_basic_only()
+    -- Configuration setup command
+    vim.api.nvim_create_user_command("RsyncSetup", function(opts)
+        M.handle_setup_command(opts)
+    end, {
+        nargs = 0,
+        desc = "Interactive configuration setup for rsync-nvim"
+    })
+end
+
 -- Helper function for download with feedback
 function M.download_with_feedback(files)
     vim.notify(string.format("Downloading %d file(s)...", #files), vim.log.levels.INFO)
