@@ -142,33 +142,31 @@ function M.setup(user_config)
     local project_config = load_project_config()
     local config_file_exists = next(project_config) ~= nil
 
-    -- Merge configurations: default -> project -> user
-    config = vim.tbl_deep_extend("force", default_config, project_config, user_config or {})
-
-    -- Return false if no config file loaded and user didn't provide config
+    -- Don't validate if no config file loaded and user didn't provide config
     if not config_file_exists and not user_config then
+        -- Still merge with defaults for basic functionality, but return false to indicate no real config
+        config = vim.tbl_deep_extend("force", default_config, {})
         return false
     end
 
-    -- Only validate if we have actual configuration data
-    local should_validate = config_file_exists or user_config
+    -- Merge configurations: default -> project -> user
+    local actual_config = vim.tbl_deep_extend("force", {}, project_config, user_config or {})
+    config = vim.tbl_deep_extend("force", default_config, actual_config)
 
-    if should_validate then
-        -- Validate configuration
-        local valid, errors = validate_config(config)
-        if not valid then
-            vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
-            return false
-        end
-
-        if config_file_exists then
-            vim.notify("Rsync configuration loaded from project file", vim.log.levels.INFO)
-        elseif user_config then
-            vim.notify("Rsync configuration loaded from user config", vim.log.levels.INFO)
-        end
+    -- Validate the actual configuration (without defaults)
+    local valid, errors = validate_config(actual_config)
+    if not valid then
+        vim.notify("Configuration validation failed:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+        return false
     end
 
-    return should_validate
+    if config_file_exists then
+        vim.notify("Rsync configuration loaded from project file", vim.log.levels.INFO)
+    elseif user_config then
+        vim.notify("Rsync configuration loaded from user config", vim.log.levels.INFO)
+    end
+
+    return true
 end
 
 -- Check if rsync is properly configured
