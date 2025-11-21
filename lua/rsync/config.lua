@@ -319,13 +319,24 @@ end
 
 -- Get SSH options
 function M.get_ssh_options()
-    local options = {
-        "-p", config.port,
-        "-i", config.private_key_path,
+    local options = {}
+
+    -- Add port if specified
+    if config.port and config.port ~= "" then
+        vim.list_extend(options, {"-p", tostring(config.port)})
+    end
+
+    -- Add private key if specified
+    if config.private_key_path and config.private_key_path ~= "" then
+        vim.list_extend(options, {"-i", config.private_key_path})
+    end
+
+    -- Add standard SSH options
+    vim.list_extend(options, {
         "-o", "StrictHostKeyChecking=no",
         "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "ConnectTimeout=" .. math.floor(config.connection_timeout / 1000)
-    }
+        "-o", "ConnectTimeout=" .. math.floor((config.connection_timeout or 30000) / 1000)
+    })
 
     return options
 end

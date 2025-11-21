@@ -130,11 +130,38 @@ function M.validate_ssh_connection(callback)
     local host = Config.get("host")
     local username = Config.get("username")
 
-    -- Build SSH test command
+    -- Validate required parameters
+    if not host or host == "" then
+        if callback then
+            callback(false, "Host is not configured", {})
+        end
+        return false
+    end
+
+    if not username or username == "" then
+        if callback then
+            callback(false, "Username is not configured", {})
+        end
+        return false
+    end
+
+    -- Build SSH test command with proper error handling
     local cmd = {"ssh"}
-    vim.list_extend(cmd, Config.get_ssh_options())
-    table.insert(cmd, "-o", "BatchMode=yes")  -- No password prompts
-    table.insert(cmd, "-o", "ConnectTimeout=10")
+
+    -- Safely extend with SSH options
+    local ssh_options = Config.get_ssh_options()
+    if ssh_options and type(ssh_options) == "table" then
+        vim.list_extend(cmd, ssh_options)
+    end
+
+    -- Add connection test options
+    vim.list_extend(cmd, {
+        "-o", "BatchMode=yes",  -- No password prompts
+        "-o", "ConnectTimeout=10",
+        "-o", "LogLevel=ERROR"  -- Reduce verbose output
+    })
+
+    -- Add target and test command
     table.insert(cmd, username .. "@" .. host)
     table.insert(cmd, "echo 'Connection successful'")
 
@@ -168,7 +195,11 @@ function M.validate_ssh_connection(callback)
 
     if handle <= 0 then
         if callback then
-            callback(false, "Failed to start SSH test process")
+            local cmd_str = table.concat(cmd, " ")
+            callback(false, "Failed to start SSH test process: " .. cmd_str, {
+                cmd = cmd_str,
+                handle = handle
+            })
         end
         return false
     end
