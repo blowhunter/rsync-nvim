@@ -60,11 +60,55 @@ function M.check_rsync()
     end
 
     -- Check essential rsync features
-    local features = vim.fn.system("rsync --help 2>/dev/null | grep -E '%-%-progress|%-%-checksum|%-%-delete'")
-    if features:match("%-%-progress") then
+    local help_output = vim.fn.system("rsync --help 2>/dev/null || echo 'no_help'")
+    local features_supported = 0
+
+    -- Check for --progress support
+    if help_output:match("%-%-progress") or help_output:match("--progress") then
         vim.health.ok("rsync supports --progress flag")
+        features_supported = features_supported + 1
     else
         vim.health.warn("rsync may not support --progress flag")
+        vim.health.info("Progress display may be limited")
+    end
+
+    -- Check for other important features
+    local essential_features = {
+        {name = "checksum", pattern = "%-%-checksum|--checksum", desc = "file integrity verification"},
+        {name = "delete", pattern = "%-%-delete|--delete", desc = "file deletion"},
+        {name = "archive", pattern = "%-%-archive|--archive", desc = "archive mode"},
+        {name = "compress", pattern = "%-%-compress|--compress|-z", desc = "compression"},
+        {name = "dry%-run", pattern = "%-%-dry%-run|--dry%-run|-n", desc = "dry run mode"},
+        {name = "recursive", pattern = "%-%-recursive|--recursive|-r", desc = "recursive directory sync"}
+    }
+
+    local missing_features = {}
+    for _, feature in ipairs(essential_features) do
+        if help_output:match(feature.pattern) then
+            features_supported = features_supported + 1
+        else
+            table.insert(missing_features, feature.name)
+        end
+    end
+
+    -- Report feature support summary
+    if features_supported >= #essential_features - 1 then  -- Allow 1 missing feature
+        vim.health.ok(string.format("rsync supports %d/%d essential features", features_supported, #essential_features))
+    else
+        vim.health.warn(string.format("rsync only supports %d/%d essential features", features_supported, #essential_features))
+        if #missing_features > 0 then
+            vim.health.info("Missing features: " .. table.concat(missing_features, ", "))
+            vim.health.info("Consider upgrading rsync for full functionality")
+        end
+    end
+
+    -- Version-based feature assurance (for modern rsync versions)
+    local version_line = rsync_version:match("rsync%s+version%s+([^\n\r]+)")
+    if version_line then
+        local major, minor = version_line:match("(%d+)%.(%d+)")
+        if major and tonumber(major) >= 3 or (tonumber(major) == 2 and tonumber(minor) >= 6) then
+            vim.health.ok("rsync version is modern and supports all required features")
+        end
     end
 end
 
