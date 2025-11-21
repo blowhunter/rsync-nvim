@@ -5,6 +5,23 @@ local M = {}
 local Config = require("rsync.config")
 local Utils = require("rsync.utils")
 
+-- Helper function to expand ~ in paths
+local function expand_path(path)
+    if path:find("^~") then
+        local home = os.getenv("HOME") or os.getenv("USERPROFILE")
+        return home .. path:sub(2)
+    end
+    return path
+end
+
+-- Helper function to get file permissions in octal format
+local function get_file_permissions(mode)
+    -- The mode includes file type in the upper bits, we need just the permission bits
+    -- Convert to octal string and extract last 3 characters
+    local perm_octal = string.format("%o", mode)
+    return string.sub(perm_octal, -3)
+end
+
 -- Start health check
 function M.check()
     vim.health.start("rsync-nvim")
@@ -88,52 +105,108 @@ end
 function M.check_configuration()
     vim.health.start("Checking configuration...")
 
-    -- Check if configuration is properly set up
+    -- Get current working directory
+    local current_dir = vim.fn.getcwd()
+    vim.health.info(string.format("Checking configuration in directory: %s", current_dir))
+
+    -- Check for configuration file
+    local config_path = current_dir .. "/.rsync.json"
+    local config_stat = vim.loop.fs_stat(config_path)
+
+    if not config_stat then
+        vim.health.info("No configuration file found in current directory")
+        vim.health.info("This is normal if you haven't set up the plugin yet")
+        vim.health.info("Create one with: :RsyncSetup")
+        return
+    end
+
+    vim.health.ok(string.format("Configuration file found: %s", config_path))
+
+    -- Check configuration file permissions
+    local permissions = get_file_permissions(config_stat.mode)
+    if config_stat.mode % 2^9 == 0 then -- Check if group/others have no permissions
+        vim.health.ok(string.format("Configuration file has secure permissions (%s)", permissions))
+    else
+        vim.health.warn(string.format("Configuration file has insecure permissions (%s)", permissions))
+        vim.health.info("Consider running: chmod 600 .rsync.json")
+    end
+
+    -- Use existing configuration validation logic
     local is_configured = Config.is_configured()
     if is_configured then
         vim.health.ok("Configuration is properly set up")
     else
-        vim.health.warn("Configuration not found or incomplete")
-        vim.health.info("Run :RsyncSetup to configure the plugin")
+        vim.health.warn("Configuration is incomplete or invalid")
     end
 
-    -- Check for configuration file if it should exist
-    local config_path = vim.fn.getcwd() .. "/.rsync.json"
-    local config_stat = vim.loop.fs_stat(config_path)
-    if config_stat then
-        vim.health.ok(string.format("Configuration file found: %s", config_path))
-
-        -- Check configuration file permissions
-        if config_stat.mode % 2^9 == 0 then -- Check if group/others have no permissions
-            vim.health.ok("Configuration file has secure permissions")
-        else
-            vim.health.warn("Configuration file may have insecure permissions")
-            vim.health.info("Consider restricting access to your SSH configuration")
-        end
-
-        -- Validate configuration content
-        local validation_result = Config.validate_current_config()
-        if validation_result.valid then
-            vim.health.ok("Configuration validation passed")
-        else
-            vim.health.error("Configuration validation failed:")
-            for _, error_msg in ipairs(validation_result.errors or {}) do
-                vim.health.error("  " .. error_msg)
-            end
-        end
+    -- Use existing validation result
+    local validation_result = Config.validate_current_config()
+    if validation_result.valid then
+        vim.health.ok("Configuration validation passed")
     else
-        vim.health.info("No configuration file found in current directory")
-        vim.health.info("This is normal if you haven't set up the plugin yet")
+        vim.health.error("Configuration validation failed:")
+        for _, error_msg in ipairs(validation_result.errors or {}) do
+            vim.health.error("  " .. error_msg)
+        end
+        vim.health.info("Fix configuration issues with: :RsyncSetup")
     end
 
-    -- Check essential configuration values
-    local required_fields = {"host", "username", "local_path", "remote_path"}
-    for _, field in ipairs(required_fields) do
-        local value = Config.get(field)
-        if value and value ~= "" then
-            vim.health.ok(string.format("Configuration %s: %s", field, value:gsub("(.{1,20}).*", "%1...")))
+    -- Display current configuration values using existing Config.get()
+    vim.health.info("Current configuration values:")
+
+    local config_fields = {
+        {name = "host", desc = "Remote server address", required = true},
+        {name = "username", desc = "SSH username", required = true},
+        {name = "port", desc = "SSH port", required = false},
+        {name = "local_path", desc = "Local project path", required = true},
+        {name = "remote_path", desc = "Remote project path", required = true},
+        {name = "private_key_path", desc = "SSH private key path", required = false},
+        {name = "sync_on_save", desc = "Auto sync on save", required = false},
+        {name = "max_connections", desc = "Maximum connections", required = false},
+        {name = "exclude_patterns", desc = "Exclude patterns", required = false}
+    }
+
+    for _, field in ipairs(config_fields) do
+        local value = Config.get(field.name)
+        if value then
+            if field.name == "exclude_patterns" and type(value) == "table" then
+                vim.health.ok(string.format("  %s: [%d patterns]", field.desc, #value))
+            else
+                local display_value = tostring(value)
+                -- Truncate long values for display
+                if #display_value > 30 then
+                    display_value = display_value:sub(1, 27) .. "..."
+                end
+                vim.health.ok(string.format("  %s: %s", field.desc, display_value))
+            end
+        elseif field.required then
+            vim.health.error(string.format("  %s: NOT SET (required)", field.desc))
         else
-            vim.health.warn(string.format("Configuration %s not set", field))
+            vim.health.info(string.format("  %s: not set (optional)", field.desc))
+        end
+    end
+
+    -- Test if configured paths are accessible
+    local local_path = Config.get("local_path")
+    if local_path and local_path ~= "" then
+        local expanded_path = expand_path(local_path)
+        local path_stat = vim.loop.fs_stat(expanded_path)
+        if path_stat then
+            vim.health.ok(string.format("Local path is accessible: %s", expanded_path))
+        else
+            vim.health.error(string.format("Local path not accessible: %s", expanded_path))
+        end
+    end
+
+    local private_key_path = Config.get("private_key_path")
+    if private_key_path and private_key_path ~= "" then
+        local expanded_key_path = expand_path(private_key_path)
+        local key_stat = vim.loop.fs_stat(expanded_key_path)
+        if key_stat then
+            local key_permissions = get_file_permissions(key_stat.mode)
+            vim.health.ok(string.format("Private key is accessible: %s (permissions: %s)", expanded_key_path, key_permissions))
+        else
+            vim.health.error(string.format("Private key not found: %s", expanded_key_path))
         end
     end
 end
@@ -219,15 +292,7 @@ function M.check_permissions()
         return path
     end
 
-    -- Helper function to get file permissions in octal format
-    local function get_file_permissions(mode)
-        -- The mode includes file type in the upper bits, we need just the permission bits
-        -- Convert to octal string and extract last 3 characters
-        local perm_octal = string.format("%o", mode)
-        return string.sub(perm_octal, -3)
-    end
-
-    -- Check SSH key setup
+  -- Check SSH key setup
     local private_key_path = Config.get("private_key_path")
     local ssh_keys_found = false
 
