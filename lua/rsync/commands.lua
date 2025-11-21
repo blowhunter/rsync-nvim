@@ -153,7 +153,7 @@ function M.handle_upload_command(opts)
             local expanded = vim.fn.expand(arg)
 
             -- Check if it's a wildcard pattern or specific file
-            if arg:match("[%*%?%[%]") then
+            if arg:find("*") or arg:find("?") or arg:find("%[") then
                 -- Handle glob patterns
                 local glob_files = vim.fn.glob(expanded, false, true)
                 if glob_files and #glob_files > 0 then
