@@ -210,28 +210,46 @@ function M.check_permissions()
         end
     end
 
+    -- Helper function to expand ~ in paths
+    local function expand_path(path)
+        if path:find("^~") then
+            local home = os.getenv("HOME") or os.getenv("USERPROFILE")
+            return home .. path:sub(2)
+        end
+        return path
+    end
+
+    -- Helper function to get file permissions in octal format
+    local function get_file_permissions(mode)
+        -- The mode includes file type in the upper bits, we need just the permission bits
+        -- Convert to octal string and extract last 3 characters
+        local perm_octal = string.format("%o", mode)
+        return string.sub(perm_octal, -3)
+    end
+
     -- Check SSH key setup
     local private_key_path = Config.get("private_key_path")
     local ssh_keys_found = false
 
     -- Check if private key is specified in config
     if private_key_path and private_key_path ~= "" then
-        local key_stat = vim.loop.fs_stat(private_key_path)
+        local expanded_path = expand_path(private_key_path)
+        local key_stat = vim.loop.fs_stat(expanded_path)
         if key_stat then
-            vim.health.ok(string.format("Configured private key found: %s", private_key_path))
+            vim.health.ok(string.format("Configured private key found: %s", expanded_path))
             ssh_keys_found = true
 
             -- Check SSH key permissions (should be 600 or 400)
-            local permissions = string.format("%o", key_stat.mode % 1000)
+            local permissions = get_file_permissions(key_stat.mode)
             if permissions == "600" or permissions == "400" then
                 vim.health.ok(string.format("Private key has secure permissions (%s)", permissions))
             else
-                vim.health.warn(string.format("Private key may have insecure permissions (%s)", permissions))
+                vim.health.warn(string.format("Private key has insecure permissions (%s): %s", permissions, expanded_path))
                 vim.health.info("SSH private keys should have permissions 600 or 400")
-                vim.health.info("Run: chmod 600 " .. private_key_path)
+                vim.health.info("Run: chmod 600 " .. expanded_path)
             end
         else
-            vim.health.error(string.format("Configured private key not found: %s", private_key_path))
+            vim.health.error(string.format("Configured private key not found: %s", expanded_path))
             vim.health.info("Check if the path is correct or the file exists")
         end
     end
@@ -240,23 +258,26 @@ function M.check_permissions()
     if not ssh_keys_found then
         local home_dir = os.getenv("HOME") or os.getenv("USERPROFILE")
         local common_key_paths = {
-            home_dir .. "/.ssh/id_rsa",
-            home_dir .. "/.ssh/id_ed25519",
-            home_dir .. "/.ssh/id_ecdsa",
-            home_dir .. "/.ssh/id_dsa"
+            "~/.ssh/id_rsa",
+            "~/.ssh/id_ed25519",
+            "~/.ssh/id_ecdsa",
+            "~/.ssh/id_dsa"
         }
 
         local found_keys = {}
         for _, key_path in ipairs(common_key_paths) do
-            local key_stat = vim.loop.fs_stat(key_path)
+            local expanded_path = expand_path(key_path)
+            local key_stat = vim.loop.fs_stat(expanded_path)
             if key_stat then
-                table.insert(found_keys, key_path)
+                table.insert(found_keys, expanded_path)
 
-                local permissions = string.format("%o", key_stat.mode % 1000)
+                local permissions = get_file_permissions(key_stat.mode)
                 if permissions == "600" or permissions == "400" then
-                    vim.health.ok(string.format("SSH key found with good permissions: %s", key_path))
+                    vim.health.ok(string.format("SSH key found with good permissions (%s): %s", permissions, expanded_path))
                 else
-                    vim.health.warn(string.format("SSH key found with insecure permissions (%s): %s", permissions, key_path))
+                    vim.health.warn(string.format("SSH key found with insecure permissions (%s): %s", permissions, expanded_path))
+                    vim.health.info("SSH private keys should have permissions 600 or 400")
+                    vim.health.info("Run: chmod 600 " .. expanded_path)
                 end
             end
         end
