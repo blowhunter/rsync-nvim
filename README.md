@@ -272,11 +272,20 @@ require("rsync").setup({
 ### 4. 基本使用
 
 ```vim
-" 上传当前文件
+" 上传当前缓冲区文件 (无需参数)
 :RsyncUpload
 
-" 下载文件
+" 上传指定文件
+:RsyncUpload file1.txt file2.lua
+
+" 下载当前缓冲区文件的远程版本
+:RsyncDownload
+
+" 下载指定文件
 :RsyncDownload remote-file.txt
+
+" 同步当前缓冲区文件
+:RsyncSyncBuffer
 
 " 同步整个项目
 :RsyncSync
@@ -298,8 +307,8 @@ require("rsync").setup({
 ## 📋 命令参考
 
 ### 文件操作
-- `:RsyncUpload [file...]` - 上传文件到远程服务器
-- `:RsyncDownload [file...]` - 从远程服务器下载文件
+- `:RsyncUpload [file...]` - 上传文件到远程服务器 (无参数时上传当前缓冲区文件)
+- `:RsyncDownload [file...]` - 从远程服务器下载文件 (无参数时下载当前缓冲区文件的远程版本)
 - `:RsyncSyncBuffer` - 同步当前缓冲区文件
 
 ### 目录操作

@@ -173,11 +173,32 @@ function M.handle_download_command(opts)
     local args = opts.fargs
 
     if #args == 0 then
-        vim.notify("Please specify file(s) to download", vim.log.levels.ERROR)
-        return
-    end
+        -- Download current buffer file if available
+        local buf_file = vim.api.nvim_buf_get_name(0)
+        if buf_file == "" then
+            vim.notify("No file to download. Please specify file(s) or open a file to download", vim.log.levels.ERROR)
+            return
+        end
 
-    M.download_with_feedback(args)
+        -- Convert local path to relative path for remote download
+        local local_path = Config.get("local_path")
+        local relative_path = buf_file
+
+        if local_path and buf_file:find(local_path, 1, true) == 1 then
+            relative_path = buf_file:sub(#local_path + 2) -- Remove local_path and trailing slash
+        end
+
+        M.download_with_feedback({relative_path}, function(success, message)
+            if success then
+                vim.notify("File downloaded: " .. relative_path, vim.log.levels.INFO)
+            else
+                vim.notify("Download failed: " .. message, vim.log.levels.ERROR)
+            end
+        end)
+    else
+        -- Download specified files
+        M.download_with_feedback(args)
+    end
 end
 
 -- Handle upload directory command
