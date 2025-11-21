@@ -536,19 +536,90 @@ sudo yum install openssh-clients
 #### 3. SSH 连接问题
 
 **错误**: `Private key not found` 或权限问题
-```bash
-# 检查私钥文件是否存在
-ls -la ~/.ssh/id_rsa
 
-# 设置正确权限 (600 或 400)
-chmod 600 ~/.ssh/id_rsa
+**诊断步骤**:
 
-# 测试 SSH 连接
-ssh -p 22 user@server.com "echo 'OK'"
+1. **检查 SSH 密钥是否存在**:
+   ```bash
+   # 查看所有 SSH 密钥
+   ls -la ~/.ssh/
 
-# 如果使用非标准密钥
-ssh -i ~/.ssh/custom_key user@server.com "echo 'OK'"
-```
+   # 检查常见密钥文件
+   ls -la ~/.ssh/id_rsa*
+   ls -la ~/.ssh/id_ed25519*
+   ls -la ~/.ssh/id_ecdsa*
+   ```
+
+2. **如果没有 SSH 密钥，生成一个**:
+   ```bash
+   # 推荐: Ed25519 算法 (更安全、更快)
+   ssh-keygen -t ed25519 -C "your-email@example.com"
+
+   # 或传统 RSA 算法
+   ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+
+   # 生成时按回车使用默认路径，设置密码短语可选
+   ```
+
+3. **设置正确权限**:
+   ```bash
+   # 设置私钥权限 (仅所有者可读写)
+   chmod 600 ~/.ssh/id_rsa
+   chmod 600 ~/.ssh/id_ed25519
+
+   # 设置公钥权限 (所有用户可读)
+   chmod 644 ~/.ssh/id_rsa.pub
+   chmod 644 ~/.ssh/id_ed25519.pub
+
+   # 设置 .ssh 目录权限
+   chmod 700 ~/.ssh/
+   ```
+
+4. **测试 SSH 连接**:
+   ```bash
+   # 基本连接测试
+   ssh user@server.com "echo 'OK'"
+
+   # 指定端口
+   ssh -p 22 user@server.com "echo 'OK'"
+
+   # 使用特定密钥
+   ssh -i ~/.ssh/custom_key user@server.com "echo 'OK'"
+
+   # 详细调试信息
+   ssh -v user@server.com "echo 'OK'"
+   ```
+
+5. **配置插件使用正确的密钥**:
+   ```json
+   {
+     "private_key_path": "~/.ssh/id_rsa",
+     "private_key_path": "~/.ssh/id_ed25519",
+     "private_key_path": "/path/to/your/custom/key"
+   }
+   ```
+
+6. **使用 SSH 代理 (推荐)**:
+   ```bash
+   # 启动 SSH 代理
+   eval "$(ssh-agent -s)"
+
+   # 添加密钥到代理
+   ssh-add ~/.ssh/id_rsa
+
+   # 查看代理中的密钥
+   ssh-add -l
+
+   # 测试代理是否工作
+   ssh-add -T
+   ```
+
+**常见问题解决**:
+
+- **权限错误**: `chmod 600 ~/.ssh/id_rsa`
+- **密钥不在默认路径**: 在配置中指定 `private_key_path`
+- **多个密钥**: 使用 SSH 代理管理多个密钥
+- **连接超时**: 检查防火墙和网络连接
 
 #### 4. UI 模块缺失
 

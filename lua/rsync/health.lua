@@ -210,12 +210,16 @@ function M.check_permissions()
         end
     end
 
-    -- Check SSH key permissions if private key is specified
+    -- Check SSH key setup
     local private_key_path = Config.get("private_key_path")
+    local ssh_keys_found = false
+
+    -- Check if private key is specified in config
     if private_key_path and private_key_path ~= "" then
         local key_stat = vim.loop.fs_stat(private_key_path)
         if key_stat then
-            vim.health.ok(string.format("Private key found: %s", private_key_path))
+            vim.health.ok(string.format("Configured private key found: %s", private_key_path))
+            ssh_keys_found = true
 
             -- Check SSH key permissions (should be 600 or 400)
             local permissions = string.format("%o", key_stat.mode % 1000)
@@ -227,7 +231,55 @@ function M.check_permissions()
                 vim.health.info("Run: chmod 600 " .. private_key_path)
             end
         else
-            vim.health.error(string.format("Private key not found: %s", private_key_path))
+            vim.health.error(string.format("Configured private key not found: %s", private_key_path))
+            vim.health.info("Check if the path is correct or the file exists")
+        end
+    end
+
+    -- If no private key configured, check for common SSH key locations
+    if not ssh_keys_found then
+        local home_dir = os.getenv("HOME") or os.getenv("USERPROFILE")
+        local common_key_paths = {
+            home_dir .. "/.ssh/id_rsa",
+            home_dir .. "/.ssh/id_ed25519",
+            home_dir .. "/.ssh/id_ecdsa",
+            home_dir .. "/.ssh/id_dsa"
+        }
+
+        local found_keys = {}
+        for _, key_path in ipairs(common_key_paths) do
+            local key_stat = vim.loop.fs_stat(key_path)
+            if key_stat then
+                table.insert(found_keys, key_path)
+
+                local permissions = string.format("%o", key_stat.mode % 1000)
+                if permissions == "600" or permissions == "400" then
+                    vim.health.ok(string.format("SSH key found with good permissions: %s", key_path))
+                else
+                    vim.health.warn(string.format("SSH key found with insecure permissions (%s): %s", permissions, key_path))
+                end
+            end
+        end
+
+        if #found_keys > 0 then
+            ssh_keys_found = true
+            vim.health.ok(string.format("Found %d SSH key(s) in default locations", #found_keys))
+            vim.health.info("If you want to use a specific key, add to config: \"private_key_path\": \"~/.ssh/id_rsa\"")
+        else
+            vim.health.warn("No SSH keys found in common locations")
+            vim.health.info("Generate SSH key: ssh-keygen -t ed25519 -C \"your-email@example.com\"")
+            vim.health.info("Or specify custom key path in config: \"private_key_path\": \"/path/to/your/key\"")
+        end
+    end
+
+    -- Check SSH agent if no local keys found
+    if not ssh_keys_found then
+        local ssh_agent = os.getenv("SSH_AUTH_SOCK")
+        if ssh_agent and ssh_agent ~= "" then
+            vim.health.ok("SSH agent is available - can use agent-stored keys")
+        else
+            vim.health.warn("No SSH keys found and no SSH agent running")
+            vim.health.info("Start SSH agent: eval \"$(ssh-agent -s)\" && ssh-add")
         end
     end
 
