@@ -12,6 +12,76 @@
 - 🛡️ **错误恢复** - 智能重试机制和错误处理
 - 💾 **状态持久化** - 保存传输历史和统计信息
 
+## 🔧 系统要求
+
+### 必需依赖
+
+**Neovim 版本**
+- **要求**: Neovim 0.7.0 或更高版本
+- **验证**: `nvim --version`
+
+**系统工具**
+- **rsync**: 文件同步工具
+  ```bash
+  # Ubuntu/Debian:
+  sudo apt install rsync
+  # CentOS/RHEL:
+  sudo yum install rsync
+  # macOS:
+  brew install rsync
+  ```
+
+- **SSH**: 远程连接工具
+  ```bash
+  # Ubuntu/Debian:
+  sudo apt install openssh-client
+  # macOS: 系统自带
+  ```
+
+**Neovim 内置模块** (自动可用，无需额外安装)
+- `vim.json` - JSON 编码/解码
+- `vim.loop` - 异步 I/O 操作
+- `vim.fn` - Vim 函数接口
+- `vim.api` - Neovim API
+
+### 可选依赖
+
+**UI 增强模块** (提升用户体验)
+- `vim.ui.input` - 交互式输入界面
+- `vim.ui.select` - 选择列表界面
+
+推荐安装以下插件来启用这些功能：
+
+```lua
+-- 使用 dressing.nvim 提供更好的 UI 体验
+{
+    "stevearc/dressing.nvim",
+    opts = {}
+}
+```
+
+**SSH 代理** (可选，提升安全性)
+```bash
+# 启动 SSH 代理
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_rsa
+```
+
+### 依赖检查
+
+使用内置的健康检查来验证所有依赖：
+
+```vim
+:checkhealth rsync
+```
+
+这将检查：
+- ✅ rsync 工具是否安装和版本
+- ✅ SSH 配置是否正确
+- ✅ 配置文件是否有效
+- ✅ 文件权限是否安全
+- ✅ 插件功能是否正常
+
 ## 🏗️ 核心架构
 
 ### 智能文件分组
@@ -58,9 +128,24 @@
 
 ## 📦 安装
 
+### 1. 检查系统要求
+
+在安装之前，请确保满足[系统要求](#-系统要求)：
+
+```bash
+# 检查 Neovim 版本 (需要 0.7.0+)
+nvim --version
+
+# 检查必需工具
+rsync --version
+ssh -V
+```
+
+### 2. 安装插件
+
 使用你喜欢的插件管理器：
 
-### Packer.nvim
+#### Packer.nvim
 ```lua
 use {
     "blowhunter/rsync-nvim",
@@ -70,7 +155,7 @@ use {
 }
 ```
 
-### Lazy.nvim
+#### Lazy.nvim
 ```lua
 {
     "blowhunter/rsync-nvim",
@@ -78,6 +163,37 @@ use {
         require("rsync").setup()
     end
 }
+```
+
+**可选 UI 增强** (推荐)
+```lua
+{
+    "blowhunter/rsync-nvim",
+    config = function()
+        require("rsync").setup()
+    end
+},
+{
+    "stevearc/dressing.nvim",  -- 提供更好的输入/选择 UI
+    opts = {}
+}
+```
+
+### 3. 验证安装
+
+安装完成后，运行健康检查验证：
+
+```vim
+:checkhealth rsync
+```
+
+期望看到：
+```
+rsync-nvim: OK
+- ✅ rsync found: version X.X.X
+- ✅ SSH found: OpenSSH_X.X
+- ✅ Neovim version is supported
+- ✅ Configuration is properly set up (或提示配置)
 ```
 
 ## 🚀 快速开始
@@ -102,13 +218,42 @@ use {
   "username": "your-username",
   "local_path": "~/your-project",
   "remote_path": "~/remote-project",
+  "private_key_path": "~/.ssh/id_rsa",
+  "port": 22,
   "sync_on_save": true,
   "exclude_patterns": [
     ".git/",
     "*.tmp",
-    "*.log"
+    "*.log",
+    ".DS_Store",
+    "node_modules/",
+    "__pycache__/"
   ]
 }
+```
+
+**SSH 私钥配置说明**
+
+如果你的 SSH 私钥不在默认路径 `~/.ssh/id_rsa`，请指定正确的路径：
+
+```json
+{
+  "private_key_path": "~/.ssh/custom_key",
+  "private_key_path": "/home/user/.keys/deploy_key",
+  "private_key_path": "C:\\Users\\User\\.ssh\\id_rsa"
+}
+```
+
+**权限检查**
+
+确保 SSH 私钥文件权限正确：
+```bash
+# 设置私钥文件权限 (仅所有者可读写)
+chmod 600 ~/.ssh/id_rsa
+
+# 检查权限
+ls -la ~/.ssh/id_rsa
+# 应该显示: -rw------- (600 权限)
 ```
 
 ### 3. 初始化插件
@@ -332,41 +477,104 @@ require("rsync").setup({
 
 ## 🐛 故障排除
 
-### 常见问题
+### 健康检查
 
-1. **没有配置文件**
-   ```vim
-   :RsyncSetup  " 运行交互式配置向导
-   ```
+首先运行健康检查来诊断问题：
 
-2. **配置验证失败**
-   ```vim
-   :RsyncConfig  " 查看当前配置
-   :RsyncTestConnection  " 测试连接
-   ```
+```vim
+:checkhealth rsync
+```
 
-3. **SSH 连接失败**
-   ```bash
-   # 测试 SSH 连接
-   ssh -p 22 user@server.com "echo 'OK'"
-   ```
+健康检查会自动检测：
+- ✅ **系统依赖**: rsync 和 SSH 工具是否安装
+- ✅ **配置状态**: 配置文件是否正确和完整
+- ✅ **权限设置**: 文件和 SSH 密钥权限是否安全
+- ✅ **功能测试**: 插件核心功能是否正常工作
 
-4. **权限问题**
-   ```bash
-   # 确保私钥文件权限正确
-   chmod 600 ~/.ssh/id_rsa
-   ```
+### 常见问题解决
 
-5. **rsync 命令未找到**
-   ```bash
-   # 安装 rsync
-   # Ubuntu/Debian:
-   sudo apt install rsync
-   # CentOS/RHEL:
-   sudo yum install rsync
-   # macOS:
-   brew install rsync
-   ```
+#### 1. 依赖问题
+
+**错误**: `Module not available: vim.json` 或类似错误
+```bash
+# 解决方案: 升级 Neovim 到 0.7.0+
+sudo apt update
+sudo apt install neovim  # 或使用你系统的包管理器
+```
+
+**错误**: `rsync command not found`
+```bash
+# Ubuntu/Debian:
+sudo apt install rsync
+# CentOS/RHEL:
+sudo yum install rsync
+# macOS:
+brew install rsync
+```
+
+**错误**: `ssh command not found`
+```bash
+# Ubuntu/Debian:
+sudo apt install openssh-client
+# CentOS/RHEL:
+sudo yum install openssh-clients
+```
+
+#### 2. 配置问题
+
+**错误**: `Configuration not found or incomplete`
+```vim
+:RsyncSetup  " 运行交互式配置向导
+```
+
+**错误**: `Configuration validation failed`
+```vim
+:RsyncConfig  " 查看当前配置
+:RsyncTestConnection  " 测试连接
+```
+
+#### 3. SSH 连接问题
+
+**错误**: `Private key not found` 或权限问题
+```bash
+# 检查私钥文件是否存在
+ls -la ~/.ssh/id_rsa
+
+# 设置正确权限 (600 或 400)
+chmod 600 ~/.ssh/id_rsa
+
+# 测试 SSH 连接
+ssh -p 22 user@server.com "echo 'OK'"
+
+# 如果使用非标准密钥
+ssh -i ~/.ssh/custom_key user@server.com "echo 'OK'"
+```
+
+#### 4. UI 模块缺失
+
+**错误**: `Optional module not available: vim.ui.input`
+```lua
+-- 安装 dressing.nvim 提供更好的 UI
+{
+    "stevearc/dressing.nvim",
+    opts = {}
+}
+```
+
+#### 5. 权限和安全问题
+
+**配置文件权限不安全**
+```bash
+# 设置配置文件权限 (仅所有者可读写)
+chmod 600 .rsync.json
+```
+
+**本地路径不可访问**
+```bash
+# 确保本地路径存在且有写权限
+mkdir -p ~/your-project
+ls -la ~/your-project
+```
 
 ### 调试模式
 
