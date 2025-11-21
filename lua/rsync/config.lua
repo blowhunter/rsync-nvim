@@ -45,6 +45,7 @@ local default_config = {
 
 -- Current configuration
 local config = {}
+local has_actual_config = false  -- Track if we have actual config data (not just defaults)
 
 -- Expand path (~) to full path
 local function expand_path(path)
@@ -123,12 +124,20 @@ local function load_project_config()
 
             -- Handle JSONC comments (strip them)
             json_str = json_str:gsub("//.-\n", "\n"):gsub("/%*.-%*/", "")
+            -- Strip whitespace
+            json_str = json_str:gsub("%s+", "")
 
-            local ok, json_config = pcall(vim.json.decode, json_str)
-            if ok then
-                return json_config
-            else
-                vim.notify("Failed to parse rsync config file: " .. config_path, vim.log.levels.ERROR)
+            -- Only parse if there's actual content
+            if json_str ~= "" then
+                local ok, json_config = pcall(vim.json.decode, json_str)
+                if ok then
+                    -- Check if the parsed config has actual content
+                    if next(json_config) then
+                        return json_config
+                    end
+                else
+                    vim.notify("Failed to parse rsync config file: " .. config_path, vim.log.levels.ERROR)
+                end
             end
         end
     end
@@ -142,16 +151,46 @@ function M.setup(user_config)
     local project_config = load_project_config()
     local config_file_exists = next(project_config) ~= nil
 
-    -- Don't validate if no config file loaded and user didn't provide config
-    if not config_file_exists and not user_config then
+    -- Debug output
+    if vim._debug_mode then
+        vim.notify("DEBUG: project_config = " .. vim.inspect(project_config), vim.log.levels.INFO)
+        vim.notify("DEBUG: config_file_exists = " .. tostring(config_file_exists), vim.log.levels.INFO)
+        vim.notify("DEBUG: user_config = " .. vim.inspect(user_config), vim.log.levels.INFO)
+    end
+
+    -- Check if user_config contains only management options (no actual rsync config)
+    local function has_actual_rsync_config(cfg)
+        if not cfg or type(cfg) ~= "table" then
+            return false
+        end
+
+        -- List of management-only options that don't count as actual rsync config
+        local management_options = {
+            config_file_reminder = true
+        }
+
+        -- Check if config has anything beyond management options
+        for key, value in pairs(cfg) do
+            if not management_options[key] then
+                return true  -- Found actual rsync config
+            end
+        end
+
+        return false  -- Only management options found
+    end
+
+    -- Don't validate if no actual rsync configuration exists
+    if not config_file_exists and not has_actual_rsync_config(user_config) then
         -- Still merge with defaults for basic functionality, but return false to indicate no real config
-        config = vim.tbl_deep_extend("force", default_config, {})
+        config = vim.tbl_deep_extend("force", default_config, user_config or {})
+        has_actual_config = false
         return false
     end
 
     -- Merge configurations: default -> project -> user
     local actual_config = vim.tbl_deep_extend("force", {}, project_config, user_config or {})
     config = vim.tbl_deep_extend("force", default_config, actual_config)
+    has_actual_config = true
 
     -- Validate the actual configuration (without defaults)
     local valid, errors = validate_config(actual_config)
@@ -186,7 +225,12 @@ end
 
 -- Validate current configuration and return detailed results
 function M.validate_current_config()
-    return validate_config(config)
+    -- Only validate if we have actual configuration data
+    if not has_actual_config then
+        return {valid = true, errors = {}}  -- No validation errors when no actual config
+    end
+    local valid, errors = validate_config(config)
+    return {valid = valid, errors = errors}
 end
 
 -- Get configuration file path
@@ -206,6 +250,12 @@ function M.get_config_file_path()
     end
 
     return nil
+end
+
+-- Debug functions for testing
+M._debug_load_project_config = load_project_config
+M._debug_get_has_actual_config = function()
+    return has_actual_config
 end
 
 -- Get configuration value
