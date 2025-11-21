@@ -238,7 +238,7 @@ local function process_batch_task(task)
             destination = "."
         end
 
-        local options = {"--from-file", "--relative"}
+        local options = {"--relative"}
 
         local callback = function(success, message)
             -- Clean up temp file
