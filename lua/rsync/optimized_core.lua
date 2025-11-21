@@ -217,7 +217,7 @@ local function transfer_file_with_progress(file_path, direction, callback)
     local total_size = stat and stat.size or 0
 
     -- Build rsync command with progress tracking
-    local cmd = build_rsync_command(file_path, direction)
+    local cmd = build_rsync_command(file_path, direction, {})
 
     local transferred_bytes = 0
     local last_update = 0
@@ -289,7 +289,7 @@ local function transfer_file_with_progress(file_path, direction, callback)
 end
 
 -- Build optimized rsync command
-local function build_rsync_command(file_path, direction)
+local function build_rsync_command(file_path, direction, additional_options)
     local Config = require("rsync.config")
 
     local cmd = {"rsync"}
@@ -310,6 +310,23 @@ local function build_rsync_command(file_path, direction)
 
     -- Add progress tracking
     table.insert(cmd, "--progress")
+
+    -- Add exclude patterns for better performance
+    local exclude_patterns = Config.get("exclude_patterns", {})
+    for _, pattern in ipairs(exclude_patterns) do
+        table.insert(cmd, "--exclude=" .. pattern)
+    end
+
+    -- Add include patterns if specified
+    local include_patterns = Config.get("include_patterns", {})
+    for _, pattern in ipairs(include_patterns) do
+        table.insert(cmd, "--include=" .. pattern)
+    end
+
+    -- Add additional options (for batch operations)
+    if additional_options then
+        vim.list_extend(cmd, additional_options)
+    end
 
     -- Add source and destination
     local source, destination

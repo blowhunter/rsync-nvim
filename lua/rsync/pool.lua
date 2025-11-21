@@ -73,6 +73,19 @@ local function execute_rsync_command(source, destination, options, callback)
     -- Build rsync command
     local cmd = {"rsync"}
     vim.list_extend(cmd, Config.get_rsync_options())
+
+    -- Add exclude patterns for better performance
+    local exclude_patterns = Config.get("exclude_patterns", {})
+    for _, pattern in ipairs(exclude_patterns) do
+        table.insert(cmd, "--exclude=" .. pattern)
+    end
+
+    -- Add include patterns if specified
+    local include_patterns = Config.get("include_patterns", {})
+    for _, pattern in ipairs(include_patterns) do
+        table.insert(cmd, "--include=" .. pattern)
+    end
+
     vim.list_extend(cmd, options)
     vim.list_extend(cmd, {"-e", "ssh " .. table.concat(Config.get_ssh_options(), " ")})
     table.insert(cmd, source)
