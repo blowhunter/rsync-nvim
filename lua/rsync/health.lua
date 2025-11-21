@@ -150,36 +150,35 @@ function M.check_plugin_dependencies()
         vim.health.warn("Please upgrade Neovim")
     end
 
-    -- Check for required modules
-    local required_modules = {
-        "vim.json",
-        "vim.loop",
-        "vim.fn",
-        "vim.api",
-        "vim.ui"
+    -- Check for required Neovim built-in modules
+    local builtin_modules = {
+        { name = "vim.json", check = function() return vim.json and vim.json.encode and vim.json.decode end },
+        { name = "vim.loop", check = function() return vim.loop and vim.loop.fs_stat and vim.loop.hrtime end },
+        { name = "vim.fn", check = function() return vim.fn and vim.fn.has and vim.fn.system end },
+        { name = "vim.api", check = function() return vim.api and vim.api.nvim_create_user_command end },
+        { name = "vim.ui", check = function() return vim.ui end }
     }
 
-    for _, module in ipairs(required_modules) do
-        local success, _ = pcall(require, module)
-        if success then
-            vim.health.ok(string.format("Module available: %s", module))
+    for _, module in ipairs(builtin_modules) do
+        if module.check() then
+            vim.health.ok(string.format("Built-in module available: %s", module.name))
         else
-            vim.health.error(string.format("Module not available: %s", module))
+            vim.health.error(string.format("Built-in module not available: %s (Neovim version issue)", module.name))
         end
     end
 
-    -- Check for optional but recommended modules
-    local optional_modules = {
-        "vim.ui.input",
-        "vim.ui.select"
+    -- Check for optional but recommended UI modules
+    local optional_ui_modules = {
+        { name = "vim.ui.input", check = function() return vim.ui and vim.ui.input end },
+        { name = "vim.ui.select", check = function() return vim.ui and vim.ui.select end }
     }
 
-    for _, module in ipairs(optional_modules) do
-        local success, _ = pcall(require, module)
-        if success then
-            vim.health.ok(string.format("Optional module available: %s", module))
+    for _, module in ipairs(optional_ui_modules) do
+        if module.check() then
+            vim.health.ok(string.format("UI module available: %s", module.name))
         else
-            vim.health.info(string.format("Optional module not available: %s", module))
+            vim.health.info(string.format("UI module not available: %s (consider installing dressing.nvim)", module.name))
+            vim.health.info("  Install with: { 'stevearc/dressing.nvim', opts = {} }")
         end
     end
 end
