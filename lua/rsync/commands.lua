@@ -149,16 +149,44 @@ function M.handle_upload_command(opts)
         -- Upload specified files
         local files = {}
         for _, arg in ipairs(args) do
-            local expanded = vim.fn.glob(arg, false, true)
-            vim.list_extend(files, expanded)
+            -- Expand the argument (handles ~, wildcards, etc.)
+            local expanded = vim.fn.expand(arg)
+
+            -- Check if it's a wildcard pattern or specific file
+            if arg:match("[%*%?%[%]") then
+                -- Handle glob patterns
+                local glob_files = vim.fn.glob(expanded, false, true)
+                if glob_files and #glob_files > 0 then
+                    vim.list_extend(files, glob_files)
+                end
+            else
+                -- Handle specific files
+                if vim.fn.filereadable(expanded) == 1 then
+                    table.insert(files, expanded)
+                else
+                    vim.notify("File not found or not readable: " .. expanded, vim.log.levels.WARN)
+                end
+            end
         end
 
         if #files == 0 then
-            vim.notify("No files found matching: " .. table.concat(args, " "), vim.log.levels.ERROR)
+            vim.notify("No valid files found for: " .. table.concat(args, " "), vim.log.levels.ERROR)
+            vim.notify("Check if the files exist and have proper permissions", vim.log.levels.INFO)
             return
         end
 
-        M.upload_with_feedback(files)
+        -- Remove duplicates while preserving order
+        local seen = {}
+        local unique_files = {}
+        for _, file in ipairs(files) do
+            if not seen[file] then
+                seen[file] = true
+                table.insert(unique_files, file)
+            end
+        end
+
+        vim.notify("Found " .. #unique_files .. " file(s) to upload", vim.log.levels.INFO)
+        M.upload_with_feedback(unique_files)
     end
 end
 
@@ -560,11 +588,20 @@ end
 function M.upload_with_feedback(files)
     vim.notify(string.format("Uploading %d file(s)...", #files), vim.log.levels.INFO)
 
+    -- Log the files being uploaded for debugging
+    if #files > 0 then
+        vim.notify("Files to upload: " .. table.concat(files, ", "), vim.log.levels.DEBUG)
+    end
+
     Core.sync_files(files, "upload", {}, function(success, message)
         if success then
             vim.notify(string.format("Successfully uploaded %d file(s)", #files), vim.log.levels.INFO)
         else
             vim.notify("Upload failed: " .. (message or "Unknown error"), vim.log.levels.ERROR)
+            -- Provide more detailed error information
+            if files and #files > 0 then
+                vim.notify("Failed files: " .. table.concat(files, ", "), vim.log.levels.DEBUG)
+            end
         end
     end)
 end
