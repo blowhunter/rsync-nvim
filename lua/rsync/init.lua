@@ -16,13 +16,27 @@ function M.setup(opts)
     -- Initialize configuration
     local config_loaded = Config.setup(opts or {})
 
-    -- Check if configuration file exists and show reminder if needed
-    if not config_loaded then
+    -- Check if configuration file exists
+    local config_file_exists = false
+    local config_path = vim.fn.getcwd() .. "/.rsync.json"
+    local stat = vim.loop.fs_stat(config_path)
+    if stat then
+        config_file_exists = true
+    end
+
+    -- If no configuration file and no valid config, show reminder and register basic commands only
+    if not config_file_exists and not config_loaded then
         if Config.get("config_file_reminder", true) then
             M.show_config_file_reminder()
         end
-        -- Still register basic setup command even without configuration
         Commands.register_basic_only()
+        return false
+    end
+
+    -- If config file exists but validation failed, still register commands and show validation errors
+    if config_file_exists and not config_loaded then
+        vim.notify("Configuration file found but validation failed. Some commands may not work properly.", vim.log.levels.WARN)
+        Commands.register()
         return false
     end
 

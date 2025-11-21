@@ -64,6 +64,10 @@ local function validate_config(cfg)
         table.insert(errors, "host is required")
     end
 
+    if not cfg.username or cfg.username == "" then
+        table.insert(errors, "username is required")
+    end
+
     if not cfg.local_path or cfg.local_path == "" then
         table.insert(errors, "local_path is required")
     end
