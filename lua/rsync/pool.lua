@@ -77,7 +77,12 @@ local function execute_rsync_command(source, destination, options, callback)
     -- Add exclude patterns for better performance
     local exclude_patterns = Config.get("exclude_patterns", {})
     for _, pattern in ipairs(exclude_patterns) do
-        table.insert(cmd, "--exclude=" .. pattern)
+        -- Quote patterns with wildcards to prevent shell expansion
+        if pattern:match("[*?%[]") then
+            table.insert(cmd, "--exclude=" .. pattern)
+        else
+            table.insert(cmd, "--exclude=" .. pattern)
+        end
     end
 
     -- Add include patterns if specified
