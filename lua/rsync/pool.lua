@@ -228,13 +228,17 @@ local function process_batch_task(task)
         local file_list = table.concat(current_batch, "\n")
         vim.fn.writefile(vim.split(file_list, "\n"), temp_file)
 
-        local source = "--files-from=" .. temp_file
+        local source
         local destination
 
         if task.direction == "upload" then
+            -- For upload: --files-from=temp_file 源目录 目标
+            local local_path = config.get("local_path", ".")
+            source = "--files-from=" .. temp_file .. " " .. local_path
             destination = config.get_remote_destination(task.remote_path or ".")
         else
-            source = config.get_remote_destination(task.remote_path or ".") .. " " .. source
+            -- For download: --files-from=temp_file 远程源:目录 目标
+            source = config.get_remote_destination(task.remote_path or ".") .. " --files-from=" .. temp_file
             destination = "."
         end
 
