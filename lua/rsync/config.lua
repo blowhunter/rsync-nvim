@@ -323,7 +323,7 @@ function M.get_ssh_options()
 
     -- Add port if specified
     if config.port and config.port ~= "" then
-        vim.list_extend(options, {"-p", tostring(config.port)})
+        vim.list_extend(options, {"-P", tostring(config.port)})
     end
 
     -- Add private key if specified
